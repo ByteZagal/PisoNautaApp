@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String?
+  avatarUrl String?
+  createdAt DateTime  @default(now())
+
+  memberships Membership[]
+  tasks       Task[]        @relation("AssignedTasks")
+  expenses    Expense[]     @relation("PaidBy")
+  activities  Activity[]
+  shopping    ShoppingItem[]
+  agreements  AgreementAcceptance[]
+}
+
+model House {
+  id        String    @id @default(uuid())
+  name      String
+  createdAt DateTime  @default(now())
+
+  memberships Membership[]
+  rooms       Room[]
+  tasks       Task[]
+  shopping    ShoppingItem[]
+  expenses    Expense[]
+  agreements  Agreement[]
+  activities  Activity[]
+}
+
+model Membership {
+  userId  String
+  houseId String
+  role    String // "host" | "member"
+  joinedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  house House @relation(fields: [houseId], references: [id])
+
+  @@id([userId, houseId])
+}
+
+model Room {
+  id      String @id @default(uuid())
+  houseId String
+  name    String
+
+  house House @relation(fields: [houseId], references: [id])
+  tasks Task[]
+}
+
+model Task {
+  id         String   @id @default(uuid())
+  houseId    String
+  roomId     String?
+  title      String
+  dueDate    DateTime?
+  completed  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  house House @relation(fields: [houseId], references: [id])
+  room  Room? @relation(fields: [roomId], references: [id])
+  assignedTo User? @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  assignedToId String?
+}
+
+model ShoppingItem {
+  id       String   @id @default(uuid())
+  houseId  String
+  title    String
+  quantity String?
+  addedBy  String
+  createdAt DateTime @default(now())
+
+  house House @relation(fields: [houseId], references: [id])
+  user  User  @relation(fields: [addedBy], references: [id])
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  houseId     String
+  title       String
+  amount      Float
+  paidById    String
+  splitMethod String   // "equal" | "weighted"
+  createdAt   DateTime @default(now())
+
+  house House @relation(fields: [houseId], references: [id])
+  paidBy User @relation("PaidBy", fields: [paidById], references: [id])
+}
+
+model Agreement {
+  id        String   @id @default(uuid())
+  houseId   String
+  text      String
+  createdAt DateTime @default(now())
+
+  house House @relation(fields: [houseId], references: [id])
+  acceptances AgreementAcceptance[]
+}
+
+model AgreementAcceptance {
+  agreementId String
+  userId      String
+  acceptedAt  DateTime @default(now())
+
+  agreement Agreement @relation(fields: [agreementId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@id([agreementId, userId])
+}
+
+model Activity {
+  id       String   @id @default(uuid())
+  houseId  String
+  userId   String?
+  type     String
+  payload  Json
+  createdAt DateTime @default(now())
+
+  house House @relation(fields: [houseId], references: [id])
+  user  User? @relation(fields: [userId], references: [id])
+}
