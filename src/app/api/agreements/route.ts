@@ -6,6 +6,7 @@ import { z } from "zod";
 
 export const runtime = "nodejs";
 
+// GET: devuelve el último acuerdo de una casa + si el usuario lo aceptó
 export async function GET(req: NextRequest) {
   const token = getBearer(req);
   if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -18,7 +19,9 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const house_id = url.searchParams.get("house_id");
-  if (!house_id) return NextResponse.json({ error: "invalid_params", details: { house_id: "required" } }, { status: 400 });
+  if (!house_id) {
+    return NextResponse.json({ error: "invalid_params", details: { house_id: "required" } }, { status: 400 });
+  }
 
   const { rows } = await pool.query(
     `
@@ -43,6 +46,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(rows[0] || null, { status: 200 });
 }
 
+// POST: crea un nuevo acuerdo para la casa (requiere ser miembro)
 export async function POST(req: NextRequest) {
   const token = getBearer(req);
   if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -59,9 +63,11 @@ export async function POST(req: NextRequest) {
   });
   const body = await req.json().catch(() => ({}));
   const parsed = Schema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "invalid_body", details: parsed.error.format() }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid_body", details: parsed.error.format() }, { status: 400 });
+  }
 
-  // Verificar pertenencia a la casa (RLS también lo refuerza)
+  // Verificar pertenencia a la casa
   const { rows: m } = await pool.query(
     `select 1
      from public.memberships m

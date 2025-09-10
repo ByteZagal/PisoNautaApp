@@ -3,6 +3,7 @@ import { pool } from "@/lib/db";
 import { getBearer, getUserEmailFromJWT } from "@/lib/auth";
 import { log } from "@/lib/log";
 import { rateLimit } from "@/lib/rateLimit";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for") || "local";

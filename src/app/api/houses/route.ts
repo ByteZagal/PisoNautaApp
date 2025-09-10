@@ -4,6 +4,7 @@ import { getBearer, getUserEmailFromJWT } from "@/lib/auth";
 import { log } from "@/lib/log";
 import { rateLimit } from "@/lib/rateLimit";
 import { z } from "zod";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const token = getBearer(req);

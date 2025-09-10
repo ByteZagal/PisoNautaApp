@@ -3,6 +3,7 @@ import { pool } from "@/lib/db";
 import { getBearer, getUserEmailFromJWT } from "@/lib/auth";
 import { ensureTable } from "@/lib/schemaCheck";
 import { z } from "zod";
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   const token = getBearer(req);
