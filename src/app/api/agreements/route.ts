@@ -3,8 +3,9 @@ import { pool } from "@/lib/db";
 import { getBearer, getUserEmailFromJWT } from "@/lib/auth";
 import { ensureTable } from "@/lib/schemaCheck";
 import { z } from "zod";
-
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 
 // GET: devuelve el último acuerdo de una casa + si el usuario lo aceptó
 export async function GET(req: NextRequest) {
