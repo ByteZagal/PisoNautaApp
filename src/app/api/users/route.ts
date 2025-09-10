@@ -1,32 +1,25 @@
-import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db";
+import { getBearer, getUserEmailFromJWT } from "@/lib/auth";
+import { log } from "@/lib/log";
+import { rateLimit } from "@/lib/rateLimit";
 
-const prisma = new PrismaClient();
+export async function GET(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for") || "local";
+  const rl = rateLimit(`users:GET:${ip}`, 20, 60_000);
+  if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
 
-// GET /api/users → lista todos los usuarios
-export async function GET() {
-  try {
-    const users = await prisma.user.findMany();
-    return NextResponse.json(users);
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "db_error" }, { status: 500 });
-  }
-}
+  const token = getBearer(req);
+  if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const email = await getUserEmailFromJWT(token);
+  if (!email) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-// POST /api/users → crea un nuevo usuario de prueba
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const user = await prisma.user.create({
-      data: {
-        email: body.email,
-        name: body.name,
-      },
-    });
-    return NextResponse.json(user, { status: 201 });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "db_error" }, { status: 500 });
-  }
+  const { rows } = await pool.query(
+    `insert into public.users(email) values ($1)
+     on conflict (email) do update set email=excluded.email
+     returning id,email,name,avatar_url`,
+    [email]
+  );
+  log("info", "users.ensure", { email });
+  return NextResponse.json(rows[0], { status: 200 });
 }
