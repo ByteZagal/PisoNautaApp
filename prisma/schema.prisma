@@ -11,8 +11,8 @@ model User {
   id        String    @id @default(uuid())
   email     String    @unique
   name      String?
-  avatarUrl String?
-  createdAt DateTime  @default(now())
+  avatarUrl String?   @map("avatar_url")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   memberships Membership[]
   tasks       Task[]        @relation("AssignedTasks")
@@ -20,12 +20,14 @@ model User {
   activities  Activity[]
   shopping    ShoppingItem[]
   agreements  AgreementAcceptance[]
+
+  @@map("users")
 }
 
 model House {
   id        String    @id @default(uuid())
   name      String
-  createdAt DateTime  @default(now())
+  createdAt DateTime  @default(now()) @map("created_at")
 
   memberships Membership[]
   rooms       Room[]
@@ -34,98 +36,114 @@ model House {
   expenses    Expense[]
   agreements  Agreement[]
   activities  Activity[]
+
+  @@map("houses")
 }
 
 model Membership {
-  userId  String
-  houseId String
-  role    String // "host" | "member"
-  joinedAt DateTime @default(now())
+  userId   String  @map("user_id")
+  houseId  String  @map("house_id")
+  role     String
+  joinedAt DateTime @default(now()) @map("joined_at")
 
   user  User  @relation(fields: [userId], references: [id])
   house House @relation(fields: [houseId], references: [id])
 
   @@id([userId, houseId])
+  @@map("memberships")
 }
 
 model Room {
   id      String @id @default(uuid())
-  houseId String
+  houseId String @map("house_id")
   name    String
 
   house House @relation(fields: [houseId], references: [id])
   tasks Task[]
+
+  @@map("rooms")
 }
 
 model Task {
   id         String   @id @default(uuid())
-  houseId    String
-  roomId     String?
+  houseId    String   @map("house_id")
+  roomId     String?  @map("room_id")
   title      String
-  dueDate    DateTime?
+  dueDate    DateTime? @map("due_date")
   completed  Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @default(now()) @map("created_at")
+  assignedToId String? @map("assigned_to")
 
   house House @relation(fields: [houseId], references: [id])
   room  Room? @relation(fields: [roomId], references: [id])
   assignedTo User? @relation("AssignedTasks", fields: [assignedToId], references: [id])
-  assignedToId String?
+
+  @@map("tasks")
 }
 
 model ShoppingItem {
   id       String   @id @default(uuid())
-  houseId  String
+  houseId  String   @map("house_id")
   title    String
   quantity String?
-  addedBy  String
-  createdAt DateTime @default(now())
+  addedBy  String   @map("added_by")
+  createdAt DateTime @default(now()) @map("created_at")
 
   house House @relation(fields: [houseId], references: [id])
   user  User  @relation(fields: [addedBy], references: [id])
+
+  @@map("shopping_items")
 }
 
 model Expense {
   id          String   @id @default(uuid())
-  houseId     String
+  houseId     String   @map("house_id")
   title       String
   amount      Float
-  paidById    String
-  splitMethod String   // "equal" | "weighted"
-  createdAt   DateTime @default(now())
+  paidById    String   @map("paid_by_id")
+  splitMethod String   @map("split_method")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   house House @relation(fields: [houseId], references: [id])
   paidBy User @relation("PaidBy", fields: [paidById], references: [id])
+
+  @@map("expenses")
 }
 
 model Agreement {
   id        String   @id @default(uuid())
-  houseId   String
+  houseId   String   @map("house_id")
   text      String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   house House @relation(fields: [houseId], references: [id])
   acceptances AgreementAcceptance[]
+
+  @@map("agreements")
 }
 
 model AgreementAcceptance {
-  agreementId String
-  userId      String
-  acceptedAt  DateTime @default(now())
+  agreementId String @map("agreement_id")
+  userId      String @map("user_id")
+  acceptedAt  DateTime @default(now()) @map("accepted_at")
 
   agreement Agreement @relation(fields: [agreementId], references: [id])
   user      User      @relation(fields: [userId], references: [id])
 
   @@id([agreementId, userId])
+  @@map("agreement_acceptances")
 }
 
 model Activity {
   id       String   @id @default(uuid())
-  houseId  String
-  userId   String?
+  houseId  String   @map("house_id")
+  userId   String?  @map("user_id")
   type     String
   payload  Json
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   house House @relation(fields: [houseId], references: [id])
   user  User? @relation(fields: [userId], references: [id])
+
+  @@map("activities")
 }
