@@ -1,21 +1,23 @@
-type Level = "info" | "warn" | "error";
+export type LogLevel = "debug" | "info" | "warn" | "error";
+export type LogMeta = Record<string, unknown>;
 
-// Tipos JSON-serializables (sin any)
-type JsonPrimitive = string | number | boolean | null;
-type JsonValue = JsonPrimitive | JsonObject | JsonArray;
-interface JsonObject { [key: string]: JsonValue }
-type JsonArray = JsonValue[];
-
-export function log(level: Level, msg: string, meta: JsonObject = {}) {
-  const line: JsonObject = {
-    t: new Date().toISOString(),
-    level,
-    msg,
-    ...meta,
-  };
-  try {
-    console.log(JSON.stringify(line));
-  } catch {
-    console.log(JSON.stringify({ t: new Date().toISOString(), level, msg, meta: "[Unserializable]" }));
-  }
+export interface LogEvent {
+  level: LogLevel;
+  msg: string;
+  time: string; // ISO
+  meta?: LogMeta;
 }
+
+function emit(evt: LogEvent): void {
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(evt));
+}
+
+export function log(level: LogLevel, msg: string, meta?: LogMeta): void {
+  emit({ level, msg, meta, time: new Date().toISOString() });
+}
+
+export const logDebug = (msg: string, meta?: LogMeta) => log("debug", msg, meta);
+export const logInfo  = (msg: string, meta?: LogMeta) => log("info", msg, meta);
+export const logWarn  = (msg: string, meta?: LogMeta) => log("warn", msg, meta);
+export const logError = (msg: string, meta?: LogMeta) => log("error", msg, meta);

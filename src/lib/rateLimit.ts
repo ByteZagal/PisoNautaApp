@@ -1,14 +1,36 @@
-type Hit = { count: number; reset: number };
-const bucket = new Map<string, Hit>();
+import { NextRequest } from "next/server";
 
-export function rateLimit(key: string, limit = 10, windowMs = 60_000) {
+export interface RateLimitOptions {
+  windowMs: number;
+  max: number;
+  key?: string;
+}
+
+type Bucket = { resetAt: number; count: number };
+const store = new Map<string, Bucket>();
+
+function clientIp(req: NextRequest): string {
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0]?.trim() || "0.0.0.0";
+  const ip = (req as unknown as { ip?: string }).ip;
+  return ip ?? "0.0.0.0";
+}
+
+export function rateLimit(req: NextRequest, opts: RateLimitOptions) {
+  const key = `${clientIp(req)}:${opts.key ?? "global"}`;
   const now = Date.now();
-  const hit = bucket.get(key);
-  if (!hit || hit.reset < now) {
-    bucket.set(key, { count: 1, reset: now + windowMs });
-    return { ok: true, remaining: limit - 1, reset: new Date(now + windowMs) };
+  const bucket = store.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    const resetAt = now + opts.windowMs;
+    store.set(key, { resetAt, count: 1 });
+    return { ok: true, remaining: opts.max - 1, resetAt };
   }
-  if (hit.count >= limit) return { ok: false, remaining: 0, reset: new Date(hit.reset) };
-  hit.count++;
-  return { ok: true, remaining: limit - hit.count, reset: new Date(hit.reset) };
+
+  if (bucket.count >= opts.max) {
+    return { ok: false, remaining: 0, resetAt: bucket.resetAt };
+  }
+
+  bucket.count += 1;
+  return { ok: true, remaining: opts.max - bucket.count, resetAt: bucket.resetAt };
 }

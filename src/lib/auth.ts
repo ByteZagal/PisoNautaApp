@@ -1,40 +1,58 @@
-import type { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 
+/**
+ * Extrae el token Bearer del request
+ */
 export function getBearer(req: NextRequest): string | null {
   const h = req.headers.get("authorization") || req.headers.get("Authorization");
   if (!h) return null;
   const [scheme, token] = h.split(" ");
-  if (!/^Bearer$/i.test(scheme) || !token) return null;
-  return token;
+  if ((scheme || "").toLowerCase() !== "bearer" || !token) return null;
+  return token.trim();
 }
 
-export async function getUserEmailFromJWT(token: string): Promise<string | null> {
-  const url = process.env.SUPABASE_URL;
-  const anon = process.env.SUPABASE_ANON_KEY;
+/**
+ * Llama a Supabase /auth/v1/user con el JWT para obtener email/id.
+ * No usa 'jose'; evita problemas de dependencias.
+ */
+export async function getIdentityFromJWT(token: string): Promise<{ email: string; id: string } | null> {
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+  if (!SUPABASE_URL) return null;
 
-  // 1) Intento oficial: preguntar a Supabase por el usuario del JWT
-  if (url && anon) {
-    try {
-      const r = await fetch(`${url}/auth/v1/user`, {
-        headers: { Authorization: `Bearer ${token}`, apikey: anon },
-        cache: "no-store",
-      });
-      if (r.ok) {
-        const u = await r.json();
-        if (u?.email && typeof u.email === "string") return u.email;
-      }
-    } catch {
-      // fallback
-    }
-  }
-
-  // 2) Fallback: leer payload del JWT (sin verificar firma) y sacar 'email'
   try {
-    const part = token.split(".")[1];
-    const json = JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
-    if (json?.email && typeof json.email === "string") return json.email;
+    const resp = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        authorization: `Bearer ${token}`,
+        ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY } : {}),
+      },
+      cache: "no-store",
+    });
+    if (!resp.ok) return null;
+    const data: unknown = await resp.json();
+    // forma segura: comprobamos mínimamente
+    if (
+      data &&
+      typeof data === "object" &&
+      "id" in data &&
+      "email" in data &&
+      typeof (data as { id: unknown }).id === "string" &&
+      typeof (data as { email: unknown }).email === "string"
+    ) {
+      return { id: (data as { id: string }).id, email: (data as { email: string }).email };
+    }
+    return null;
   } catch {
-    // ignore
+    return null;
   }
-  return null;
+}
+
+/**
+ * Devuelve email (o null) desde un NextRequest.
+ */
+export async function getUserEmailFromJWT(req: NextRequest): Promise<string | null> {
+  const token = getBearer(req);
+  if (!token) return null;
+  const ident = await getIdentityFromJWT(token);
+  return ident?.email ?? null;
 }
