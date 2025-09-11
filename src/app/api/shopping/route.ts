@@ -1,40 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getBearer, getUserEmailFromJWT } from "@/lib/auth";
-import { ensureTable } from "@/lib/schemaCheck";
+import { json, error } from "@/lib/http";
+import { supabaseFromRequest } from "@/lib/supabase";
 import { z } from "zod";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
-  const token = getBearer(req);
-  if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const email = await getUserEmailFromJWT(token);
-  if (!email) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+export const runtime = "edge";
 
-  if (!(await ensureTable("shopping_items"))) {
-    return NextResponse.json({ error: "not_implemented", message: "DDL de shopping_items no coincide" }, { status: 501 });
-  }
+const CreateItem = z.object({
+  item: z.string().min(1),
+  qty: z.number().int().positive().default(1),
+});
 
-  const Schema = z.object({
-    title: z.string().min(1),
-    house_id: z.string().uuid(),
-    quantity: z.string().optional(),
-  });
-  const body = await req.json().catch(() => ({}));
-  const parsed = Schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_body", details: parsed.error.format() }, { status: 400 });
-  }
+export async function GET() {
+  const supabase = await supabaseFromRequest();
+  const { data, error: e } = await supabase.auth.getUser();
+  if (e || !data?.user) return error(401, "No autenticado");
+  return json({ items: [] });
+}
 
-  const { rows: u } = await pool.query(`select id from public.users where email=$1`, [email]);
-  const added_by = u[0]?.id || null;
+export async function POST(req: Request) {
+  const supabase = await supabaseFromRequest();
+  const { data, error: e } = await supabase.auth.getUser();
+  if (e || !data?.user) return error(401, "No autenticado");
 
-  const { rows } = await pool.query(
-    `insert into public.shopping_items(house_id, title, quantity, added_by)
-     values ($1,$2,$3,$4)
-     returning id, house_id, title, quantity, added_by, created_at`,
-    [parsed.data.house_id, parsed.data.title, parsed.data.quantity || null, added_by]
-  );
-  return NextResponse.json(rows[0], { status: 201 });
+  const body = (await req.json().catch(() => ({}))) as unknown;
+  const parsed = CreateItem.safeParse(body);
+  if (!parsed.success) return error(400, "Datos inválidos", parsed.error.flatten());
+  return error(501, "No implementado");
 }

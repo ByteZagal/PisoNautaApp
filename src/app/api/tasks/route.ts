@@ -1,41 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getBearer, getUserEmailFromJWT } from "@/lib/auth";
-import { ensureTable } from "@/lib/schemaCheck";
+import { json, error } from "@/lib/http";
+import { supabaseFromRequest } from "@/lib/supabase";
 import { z } from "zod";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
-  const token = getBearer(req);
-  if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const email = await getUserEmailFromJWT(token);
-  if (!email) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+export const runtime = "edge";
 
-  if (!(await ensureTable("tasks"))) {
-    return NextResponse.json({ error: "not_implemented", message: "DDL de tasks no coincide" }, { status: 501 });
-  }
+const CreateTask = z.object({
+  title: z.string().min(1),
+  due: z.string().optional(),
+});
 
-  const Schema = z.object({
-    title: z.string().min(1),
-    house_id: z.string().uuid(),
-    room_id: z.string().uuid().optional(),
-    assigned_to: z.string().uuid().optional(),
-    due_date: z.string().optional(), // ISO yyyy-mm-dd
-  });
+export async function GET() {
+  const supabase = await supabaseFromRequest();
+  const { data, error: e } = await supabase.auth.getUser();
+  if (e || !data?.user) return error(401, "No autenticado");
+  return json({ items: [] });
+}
 
-  const body = await req.json().catch(() => ({}));
-  const parsed = Schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_body", details: parsed.error.format() }, { status: 400 });
-  }
+export async function POST(req: Request) {
+  const supabase = await supabaseFromRequest();
+  const { data, error: e } = await supabase.auth.getUser();
+  if (e || !data?.user) return error(401, "No autenticado");
 
-  const { title, house_id, room_id, assigned_to, due_date } = parsed.data;
-  const { rows } = await pool.query(
-    `insert into public.tasks(house_id, room_id, title, assigned_to, due_date)
-     values ($1,$2,$3,$4,$5)
-     returning id, house_id, room_id, title, assigned_to, due_date, completed, created_at`,
-    [house_id, room_id || null, title, assigned_to || null, due_date || null]
-  );
-  return NextResponse.json(rows[0], { status: 201 });
+  const body = (await req.json().catch(() => ({}))) as unknown;
+  const parsed = CreateTask.safeParse(body);
+  if (!parsed.success) return error(400, "Datos inválidos", parsed.error.flatten());
+  return error(501, "No implementado");
 }
